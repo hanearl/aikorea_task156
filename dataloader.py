@@ -6,14 +6,16 @@ import logging
 import torch
 from torch.utils import data
 from torch.utils.data import TensorDataset
+from torch.utils.data import Dataset
 
 import re
 import emoji
 from soynlp.normalizer import repeat_normalize
 
-import pandas as pd
-from transformers import AutoTokenizer, AutoModel, AutoConfig
+from transformers import AutoTokenizer
+
 from config import Config
+from new_dataloader import MyDataset
 
 logger = logging.getLogger(__name__)
 
@@ -114,10 +116,14 @@ class NsmcProcessor(object):
         for i in range(1, len(lines)):
             line = lines[i].split('\t')
             guid = "%s-%s" % (set_type, i)
-            text_a = clean(line[0])
-            label = int(line[1])
-            if i % 1000 == 0:
-                logger.info(lines[i])
+            try:
+                text_a = clean(line[0])
+                label = int(line[1])
+            except:
+                print('[exept] ', line)
+                continue
+            # if i % 1000 == 0:
+            #     logger.info(lines[i])
             examples.append(InputExample(guid=guid, text_a=text_a, label=label))
         return examples
 
@@ -184,11 +190,11 @@ def convert_examples_to_features(examples, max_seq_len, tokenizer,
         attention_mask = tokens['attention_mask']
         token_type_ids = tokens['token_type_ids']
 
-        assert len(input_ids) == max_seq_len, "Error with input length {} vs {}".format(len(input_ids), max_seq_len)
-        assert len(attention_mask) == max_seq_len, "Error with attention mask length {} vs {}".format(
-            len(attention_mask), max_seq_len)
-        assert len(token_type_ids) == max_seq_len, "Error with token type length {} vs {}".format(len(token_type_ids),
-                                                                                                  max_seq_len)
+        # assert len(input_ids) == max_seq_len, "Error with input length {} vs {}".format(len(input_ids), max_seq_len)
+        # assert len(attention_mask) == max_seq_len, "Error with attention mask length {} vs {}".format(
+        #     len(attention_mask), max_seq_len)
+        # assert len(token_type_ids) == max_seq_len, "Error with token type length {} vs {}".format(len(token_type_ids),
+        #                                                                                           max_seq_len)
 
         label_id = example.label
 
@@ -249,7 +255,7 @@ def load_and_cache_examples(root, tokenizer, mode):
 
 
 def data_loader(root, phase, batch_size, tokenizer):
-    dataset = load_and_cache_examples(root, tokenizer, mode=phase)
+    dataset = MyDataset(phase)
 
     if phase == 'train':
         sampler = data.RandomSampler(dataset)

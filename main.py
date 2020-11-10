@@ -1,38 +1,28 @@
 import os
-import math
+
 import datetime
 import numpy as np
-import time
+
 import torch
-import torch.nn as nn
-from torch.optim import Adam
-from torch.optim.lr_scheduler import StepLR
-import argparse
 import random
 import logging
 
 from transformers import AutoTokenizer, AutoModel, AutoConfig
-from bayes_opt import BayesianOptimization
 
 from model import Trainer
 from dataloader import data_loader
 from config import Config
 
 '''
-data
- \_ train.tsv
- \_ test.tsv
- \_ validate.tsv(생성 필요)
- \_ pred.tsv(train시 validate 예측값, test시 test 예측값 저장)
+1. confusion matrix 어느 tag가 정확도가 안나오나
+2. 틀린 case 들 모아서 분석하기
+3. 같은조건 bert 모델별 분석해보기
+4. 같은 기법 전처리 기법 달리해보기
+5. bert 레이어 별 cls 결과 및 앙상블 결과
 
-model
- \_ 1.pth, ...
-
- evaluation.py를 통해 예측값의 f1 score 확인 가능
-
-# 데이터, 모델 경로 수정 바랍니다.
+1. 너무 안좋은 데이터는 버리는게 좋은가?
+2. 어떤 데이터가 학습을 방해하는
 '''
-
 
 def init_logger():
     logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
@@ -82,7 +72,7 @@ def main(alpha, gamma):
 
     # create model config 확인
     model = Trainer(config, train_dataloader, validate_dataloader, test_dataloader)
-    print(model.device)
+
     if mode == 'test':
         model.load_model(model_name)
 

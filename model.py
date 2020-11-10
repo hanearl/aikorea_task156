@@ -99,24 +99,27 @@ class Trainer(object):
             epoch_iterator = tqdm(train_dataloader, desc="Iteration")
             for step, batch in enumerate(epoch_iterator):
                 self.model.train()
-                batch = tuple(t.to(self.device) for t in batch)  # GPU or CPU
-                inputs = {'input_ids': batch[0],
-                          'attention_mask': batch[1],
-                          'labels': batch[3]}
-                inputs['token_type_ids'] = batch[2]
+                input_ids = batch['inputs'].to(self.device)
+                attention_mask = batch['mask'].to(self.device)
+                labels = batch['labels'].to(self.device)
+
+                # batch = tuple(t.to(self.device) for t in batch)  # GPU or CPU
+                inputs = {'input_ids': input_ids,
+                          'attention_mask': attention_mask}
+                # inputs['token_type_ids'] = batch[2]
 
                 self.model.zero_grad()
                 self.optimizer.zero_grad()
 
                 # outputs = self.model(**inputs)
                 # loss = outputs[0]
-                loss, logits = self.model(**inputs)
+                loss, logits = self.model(**inputs, labels=labels)
                 logits = torch.sigmoid(logits)
 
-                labels = torch.zeros((len(batch[3]), self.num_labels)).to(self.device)
-                labels[range(len(batch[3])), batch[3]] = 1
+                labels_arr = torch.zeros((len(labels), self.num_labels)).to(self.device)
+                labels_arr[range(len(labels)), labels] = 1
 
-                loss = self.criterion(logits, labels)
+                loss = self.criterion(logits, labels_arr)
 
                 # if self.args.gradient_accumulation_steps > 1:
                 #     loss = loss / self.args.gradient_accumulation_steps

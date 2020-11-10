@@ -32,7 +32,7 @@ class Config:
             'model_name': '3.pth',
             'seed': 42,
             'prediction_file': os.path.join(PREDICT_DIR, 'prediction.tsv'),
-            'batch': 80,
+            'batch': 45,
             'mode': mode,
             'gradient_accumulation_steps': 1,
             'logging_steps': 983,
