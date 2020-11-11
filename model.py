@@ -60,7 +60,7 @@ class Trainer(object):
         self.device = "cuda" if torch.cuda.is_available() and args.cuda else "cpu"
         self.model.to(self.device)
 
-    def train(self):
+    def train(self, alpha, gamma):
         train_dataloader = self.train_dataloader
 
         t_total = len(train_dataloader) * self.args.num_epochs
@@ -74,8 +74,9 @@ class Trainer(object):
              'weight_decay': 0.0}
         ]
         self.optimizer = optimizer = AdamW(optimizer_grouped_parameters, lr=self.args.lr, eps=1e-8)
-        self.scheduler = scheduler = get_linear_schedule_with_warmup(self.optimizer, num_warmup_steps=100,
+        self.scheduler = scheduler = get_linear_schedule_with_warmup(self.optimizer, num_warmup_steps=0,
                                                                      num_training_steps=t_total)
+        self.criterion = FocalLoss(alpha=alpha, gamma=gamma)
 
         # Train!
         logger.info("***** Running training *****")
@@ -102,24 +103,22 @@ class Trainer(object):
                 inputs = {'input_ids': batch[0], 'attention_mask': batch[1], 'labels': batch[3],
                           'token_type_ids': batch[2]}
 
-                outputs = self.model(**inputs)
-                loss = outputs[0]
+                # outputs = self.model(**inputs)
+                # loss = outputs[0]
 
                 # # Custom Loss
-                # loss, logits = self.model(**inputs)
-                # logits = torch.sigmoid(logits)
-                #
-                # labels_arr = torch.zeros((len(labels), self.num_labels)).to(self.device)
-                # labels_arr[range(len(labels)), labels] = 1
-                #
-                # loss = self.criterion(logits, labels_arr)
+                loss, logits = self.model(**inputs)
+                logits = torch.sigmoid(logits)
 
-                # if self.args.gradient_accumulation_steps > 1:
-                #     loss = loss / self.args.gradient_accumulation_steps
+                labels = torch.zeros((len(batch[3]), self.num_labels)).to(self.device)
+                labels[range(len(batch[3])), batch[3]] = 1
+
+                loss = self.criterion(logits, labels)
 
                 loss.backward()
                 self.optimizer.step()
                 self.scheduler.step()  # Update learning rate schedule
+
                 self.model.zero_grad()
                 self.optimizer.zero_grad()
 
@@ -132,8 +131,8 @@ class Trainer(object):
 
             self.save_model(epoch)
 
-        # with open(os.path.join(self.args.result_dir, self.args.train_id, 'param_seach.txt'), "a", encoding="utf-8") as f:
-        #     f.write('alpha: {}, gamma: {}, f1_macro: {}\n'.format(alpha, gamma, fin_result['f1_macro']))
+        with open(os.path.join(self.args.result_dir, self.args.train_id, 'param_seach.txt'), "a", encoding="utf-8") as f:
+            f.write('alpha: {}, gamma: {}, f1_macro: {}\n'.format(alpha, gamma, fin_result['f1_macro']))
         return fin_result['f1_macro']
 
     def evaluate(self, mode='test'):

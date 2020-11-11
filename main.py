@@ -15,14 +15,19 @@ from dataloader import data_loader
 from config import Config
 
 '''
-1. confusion matrix 어느 tag가 정확도가 안나오나
-2. 틀린 case 들 모아서 분석하기
-3. 같은조건 bert 모델별 분석해보기
-4. 같은 기법 전처리 기법 달리해보기
+테스트 리스트
+1. baseline 설정
+2. focal loss
+3. 전처리 추가하기
+4. SWA 적용해보기
+4. kcbert-large, electra-small, electra-base 등 모델 테스트
 5. bert 레이어 별 cls 결과 및 앙상블 결과
 
-1. 너무 안좋은 데이터는 버리는게 좋은가?
-2. 어떤 데이터가 학습을 방해하는
+고민거리
+1. confusion matrix 어느 tag가 정확도가 안나오나
+2. 틀린 case 들 모아서 분석하기
+3. 너무 안좋은 데이터는 버리는게 좋은가?
+4. 어떤 데이터가 학습을 방해하는
 '''
 
 def init_logger(filename):
@@ -40,7 +45,7 @@ def set_seed(args):
         torch.cuda.manual_seed_all(args.seed)
 
 
-def main(mode=None, train_id=None, num_epochs=None):
+def main(mode=None, train_id=None, num_epochs=None, alpha=None, gamma=None):
     config = Config("config.json")
     if mode:
         config.mode = mode
@@ -74,7 +79,7 @@ def main(mode=None, train_id=None, num_epochs=None):
     model = Trainer(config, train_dataloader, validate_dataloader, test_dataloader)
 
     if config.mode == 'train':
-        result = model.train()
+        result = model.train(alpha=alpha, gamma=gamma)
     elif config.mode == 'test':
         model.load_model(config.model_weight_file)
         result = model.evaluate('test')
