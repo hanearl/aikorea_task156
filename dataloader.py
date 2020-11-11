@@ -165,8 +165,7 @@ def load_and_cache_examples(root, tokenizer, mode):
         'nsmc', list(filter(None, config.bert_model_name.split("/"))).pop(), config.max_seq_len, mode)
 
     cached_features_file = os.path.join(config.result_dir, config.train_id, cached_file_name)
-    # if os.path.exists(cached_features_file):
-    if False:
+    if os.path.exists(cached_features_file):
         logger.info("Loading features from cached file %s", cached_features_file)
         features = torch.load(cached_features_file)
     else:
