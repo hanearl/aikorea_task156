@@ -7,15 +7,10 @@ import torch
 from torch.utils import data
 from torch.utils.data import TensorDataset
 
-from torchvision import datasets, transforms
-from PIL import Image
-import pandas as pd
-from transformers import AutoTokenizer, AutoModel, AutoConfig
+from config import Config
 
 logger = logging.getLogger(__name__)
-
-BERT_MODEL_NAME = 'beomi/kcbert-base'
-MAX_SEQ_LEN = 100
+config = Config("config.json")
 
 
 class InputExample(object):
@@ -169,7 +164,7 @@ def load_and_cache_examples(root, tokenizer, mode):
 
     # Load data features from cache or dataset file
     cached_file_name = 'cached_{}_{}_{}_{}'.format(
-        'nsmc', list(filter(None, BERT_MODEL_NAME.split("/"))).pop(), MAX_SEQ_LEN, mode)
+        'nsmc', list(filter(None, config.bert_model_name.split("/"))).pop(), config.max_seq_len, mode)
 
     cached_features_file = os.path.join(root, cached_file_name)
     if os.path.exists(cached_features_file):
@@ -186,7 +181,7 @@ def load_and_cache_examples(root, tokenizer, mode):
         else:
             raise Exception("For mode, Only train, dev, test is available")
 
-        features = convert_examples_to_features(examples, MAX_SEQ_LEN, tokenizer)
+        features = convert_examples_to_features(examples, config.max_seq_len, tokenizer)
         logger.info("Saving features into cached file %s", cached_features_file)
         torch.save(features, cached_features_file)
 
