@@ -40,19 +40,19 @@ class Trainer(object):
         self.validate_dataloader = validate_dataloader
         self.test_dataloader = test_dataloader
 
-        self.label_lst = [0, 1, 2, 3]
-        self.num_labels = len(self.label_lst)
+        self.label_lst = [i for i in range(self.args.num_classes)]
+        self.num_labels = self.args.num_classes
 
         self.config_class = AutoConfig
         self.model_class = BertForSequenceClassification
 
-        self.config = self.config_class.from_pretrained(Config.BERT_MODEL_NAME,
+        self.config = self.config_class.from_pretrained(self.args.bert_model_name,
                                                         num_labels=self.num_labels,
                                                         finetuning_task='nsmc',
                                                         id2label={str(i): label for i, label in
                                                                   enumerate(self.label_lst)},
                                                         label2id={label: i for i, label in enumerate(self.label_lst)})
-        self.model = self.model_class.from_pretrained(Config.BERT_MODEL_NAME, config=self.config)
+        self.model = self.model_class.from_pretrained(self.args.bert_model_name, config=self.config)
         self.optimizer = None
         self.scheduler = None
 
@@ -60,10 +60,10 @@ class Trainer(object):
         self.device = "cuda" if torch.cuda.is_available() and args.cuda else "cpu"
         self.model.to(self.device)
 
-    def train(self, alpha=0.7, gamma=1.0):
+    def train(self):
         train_dataloader = self.train_dataloader
 
-        t_total = len(train_dataloader) // self.args.logging_steps * self.args.num_epochs
+        t_total = len(train_dataloader) * self.args.num_epochs
 
         # Prepare optimizer and schedule (linear warmup and decay)
         no_decay = ['bias', 'LayerNorm.weight']
@@ -74,52 +74,45 @@ class Trainer(object):
              'weight_decay': 0.0}
         ]
         self.optimizer = optimizer = AdamW(optimizer_grouped_parameters, lr=self.args.lr, eps=1e-8)
-        self.scheduler = scheduler = get_linear_schedule_with_warmup(self.optimizer, num_warmup_steps=1000,
+        self.scheduler = scheduler = get_linear_schedule_with_warmup(self.optimizer, num_warmup_steps=100,
                                                                      num_training_steps=t_total)
-        self.criterion = FocalLoss(alpha=alpha, gamma=gamma)
 
         # Train!
         logger.info("***** Running training *****")
-        logger.info("  Num examples = %d", len(self.train_dataloader) * self.args.batch)
+        logger.info("  Num examples = %d", len(self.train_dataloader) * self.args.batch_size)
         logger.info("  Num Epochs = %d", self.args.num_epochs)
-        logger.info("  Total train batch size = %d", self.args.batch)
-        logger.info("  Gradient Accumulation steps = %d", self.args.gradient_accumulation_steps)
+        logger.info("  Total train batch size = %d", self.args.batch_size)
         logger.info("  Total optimization steps = %d", t_total)
-        logger.info("  Logging steps = %d", self.args.logging_steps)
-        logger.info("  Save steps = %d", self.args.save_steps)
 
         global_step = 0
         tr_loss = 0.0
         self.model.zero_grad()
+        self.optimizer.zero_grad()
 
         train_iterator = trange(int(self.args.num_epochs), desc="Epoch")
 
         fin_result = None
         for epoch in train_iterator:
+            print(len(train_dataloader))
             epoch_iterator = tqdm(train_dataloader, desc="Iteration")
             for step, batch in enumerate(epoch_iterator):
                 self.model.train()
-                input_ids = batch['inputs'].to(self.device)
-                attention_mask = batch['mask'].to(self.device)
-                labels = batch['labels'].to(self.device)
 
-                # batch = tuple(t.to(self.device) for t in batch)  # GPU or CPU
-                inputs = {'input_ids': input_ids,
-                          'attention_mask': attention_mask}
-                # inputs['token_type_ids'] = batch[2]
+                batch = tuple(t.to(self.device) for t in batch)  # GPU or CPU
+                inputs = {'input_ids': batch[0], 'attention_mask': batch[1], 'labels': batch[3],
+                          'token_type_ids': batch[2]}
 
-                self.model.zero_grad()
-                self.optimizer.zero_grad()
+                outputs = self.model(**inputs)
+                loss = outputs[0]
 
-                # outputs = self.model(**inputs)
-                # loss = outputs[0]
-                loss, logits = self.model(**inputs, labels=labels)
-                logits = torch.sigmoid(logits)
-
-                labels_arr = torch.zeros((len(labels), self.num_labels)).to(self.device)
-                labels_arr[range(len(labels)), labels] = 1
-
-                loss = self.criterion(logits, labels_arr)
+                # # Custom Loss
+                # loss, logits = self.model(**inputs)
+                # logits = torch.sigmoid(logits)
+                #
+                # labels_arr = torch.zeros((len(labels), self.num_labels)).to(self.device)
+                # labels_arr[range(len(labels)), labels] = 1
+                #
+                # loss = self.criterion(logits, labels_arr)
 
                 # if self.args.gradient_accumulation_steps > 1:
                 #     loss = loss / self.args.gradient_accumulation_steps
@@ -127,22 +120,20 @@ class Trainer(object):
                 loss.backward()
                 self.optimizer.step()
                 self.scheduler.step()  # Update learning rate schedule
+                self.model.zero_grad()
+                self.optimizer.zero_grad()
 
                 tr_loss += loss.item()
-                # if (step + 1) % self.args.gradient_accumulation_steps == 0:
-                #     torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
-                #
-                #     self.optimizer.step()
-                #     self.scheduler.step()  # Update learning rate schedule
-                #     self.model.zero_grad()
-                #     global_step += 1
+                global_step += 1
+                logger.info('train loss %f', loss.item())
 
+            logger.info('total train loss %f', tr_loss / global_step)
             fin_result = self.evaluate("validate")  # Only test set available for NSMC
 
             self.save_model(epoch)
 
-        with open(os.path.join(Config.MODEL_SAVE_DIR, 'param_seach.txt'), "a", encoding="utf-8") as f:
-            f.write('alpha: {}, gamma: {}, f1_macro: {}\n'.format(alpha, gamma, fin_result['f1_macro']))
+        # with open(os.path.join(self.args.result_dir, self.args.train_id, 'param_seach.txt'), "a", encoding="utf-8") as f:
+        #     f.write('alpha: {}, gamma: {}, f1_macro: {}\n'.format(alpha, gamma, fin_result['f1_macro']))
         return fin_result['f1_macro']
 
     def evaluate(self, mode='test'):
@@ -155,8 +146,8 @@ class Trainer(object):
 
         # Eval!
         logger.info("***** Running evaluation on %s dataset *****", mode)
-        logger.info("  Num examples = %d", len(dataloader) * self.args.batch)
-        logger.info("  Batch size = %d", self.args.batch)
+        logger.info("  Num examples = %d", len(dataloader) * self.args.batch_size)
+        logger.info("  Batch size = %d", self.args.batch_size)
         eval_loss = 0.0
         nb_eval_steps = 0
         preds = None
@@ -167,10 +158,8 @@ class Trainer(object):
         for batch in tqdm(dataloader, desc="Evaluating"):
             batch = tuple(t.to(self.device) for t in batch)
             with torch.no_grad():
-                inputs = {'input_ids': batch[0],
-                          'attention_mask': batch[1],
-                          'labels': batch[3]}
-                inputs['token_type_ids'] = batch[2]
+                inputs = {'input_ids': batch[0], 'attention_mask': batch[1], 'labels': batch[3],
+                          'token_type_ids': batch[2]}
                 outputs = self.model(**inputs)
                 tmp_eval_loss, logits = outputs[:2]
 
@@ -201,9 +190,7 @@ class Trainer(object):
         results.update({
             'precision': p_macro, 'recall': r_macro, 'f1_macro': f_macro
         })
-        # pred_labels = []
-        # for i in range(len(preds)):
-        #     pred_labels.append([math.floor(preds[i]/2), preds[i]%2])
+
         with open(self.args.prediction_file, "w", encoding="utf-8") as f:
             for pred in preds:
                 f.write("{}\n".format(pred))
@@ -221,15 +208,15 @@ class Trainer(object):
             'optimizer': self.optimizer.state_dict(),
             'scheduler': self.scheduler.state_dict()
         }
-        torch.save(state, os.path.join(Config.MODEL_SAVE_DIR, str(num) + '.pth'))
-        print('model saved')
+        torch.save(state, os.path.join(self.args.result_dir, self.args.train_id, 'epoch_' + str(num) + '.pth'))
+        logger.info('model saved')
 
     def load_model(self, model_name):
 
-        state = torch.load(os.path.join(Config.MODEL_SAVE_DIR, model_name))
+        state = torch.load(os.path.join(self.args.result_dir, self.args.train_id, model_name))
         self.model.load_state_dict(state['model'])
         if self.optimizer is not None:
             self.optimizer.load_state_dict(state['optimizer'])
         if self.scheduler is not None:
             self.scheduler.load_state_dict(state['scheduler'])
-        print('model loaded')
+        logger.info('model loaded')

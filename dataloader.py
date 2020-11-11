@@ -154,8 +154,6 @@ def convert_examples_to_features(examples, max_seq_len, tokenizer):
                           label_id=label_id
                           ))
 
-        break
-
     return features
 
 
@@ -166,8 +164,9 @@ def load_and_cache_examples(root, tokenizer, mode):
     cached_file_name = 'cached_{}_{}_{}_{}'.format(
         'nsmc', list(filter(None, config.bert_model_name.split("/"))).pop(), config.max_seq_len, mode)
 
-    cached_features_file = os.path.join(root, cached_file_name)
-    if os.path.exists(cached_features_file):
+    cached_features_file = os.path.join(config.result_dir, config.train_id, cached_file_name)
+    # if os.path.exists(cached_features_file):
+    if False:
         logger.info("Loading features from cached file %s", cached_features_file)
         features = torch.load(cached_features_file)
     else:
@@ -206,3 +205,8 @@ def data_loader(root, phase, batch_size, tokenizer):
 
     dataloader = data.DataLoader(dataset=dataset, sampler=sampler, batch_size=batch_size)
     return dataloader
+
+
+# from transformers import AutoTokenizer
+# dataloader = data_loader('/home/ubuntu/aikorea/sbs/data', 'train', 32, AutoTokenizer.from_pretrained(config.bert_model_name))
+# print(len(dataloader))
