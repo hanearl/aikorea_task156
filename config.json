@@ -1,0 +1,19 @@
+{
+  "num_classes": 4,
+  "lr": 0.0001,
+  "cuda": true,
+  "num_epochs": 4,
+  "model_name": "3.pth",
+  "seed": 42,
+  "base_dir": "/home/ubuntu/aikorea/sbs",
+  "train_dir": "train",
+  "data_dir": "data",
+  "result_dir": "result",
+  "prediction_file": "prediction.tsv",
+  "batch": 45,
+  "mode": "train",
+  "gradient_accumulation_steps": 1,
+  "logging_steps": 983,
+  "save_steps": 983,
+  "print_iter": 300
+}
