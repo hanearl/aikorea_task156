@@ -9,6 +9,7 @@ import logging
 import argparse
 
 from transformers import AutoTokenizer, AutoModel, AutoConfig
+from bayes_opt import BayesianOptimization
 
 from model import Trainer
 from dataloader import data_loader
@@ -20,7 +21,7 @@ from config import Config
 2. focal loss
 3. 전처리 추가하기
 4. SWA 적용해보기
-4. kcbert-large, electra-small, electra-base 등 모델 테스트
+4. kcbert-large, electra-small, electra-base 등 모델 테스트 (large는 별로!)
 5. bert 레이어 별 cls 결과 및 앙상블 결과
 
 고민거리
@@ -29,6 +30,7 @@ from config import Config
 3. 너무 안좋은 데이터는 버리는게 좋은가?
 4. 어떤 데이터가 학습을 방해하는
 '''
+
 
 def init_logger(filename):
     logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
@@ -44,15 +46,22 @@ def set_seed(args):
     if args.cuda and torch.cuda.is_available():
         torch.cuda.manual_seed_all(args.seed)
 
+args = argparse.ArgumentParser()
+args.add_argument("--num_epochs", type=int, default=5)
+args.add_argument("--train_id", type=str, default=None)
+args.add_argument("--mode", type=str, default=None)
 
-def main(mode=None, train_id=None, num_epochs=None, alpha=None, gamma=None):
+args = args.parse_args()
+
+# def main(mode=None, train_id=None, num_epochs=None, alpha=None, gamma=None):
+def main(alpha=None, gamma=None):
     config = Config("config.json")
-    if mode:
-        config.mode = mode
-    if train_id:
-        config.train_id = train_id
-    if num_epochs:
-        config.num_epochs = num_epochs
+    if args.mode:
+        config.mode = args.mode
+    if args.train_id:
+        config.train_id = args.train_id
+    if args.num_epochs:
+        config.num_epochs = args.num_epochs
 
     train_path = os.path.join(config.base_dir, config.train_dir, config.train_id)
     result_path = os.path.join(config.base_dir, config.result_dir, config.train_id)
@@ -88,17 +97,10 @@ def main(mode=None, train_id=None, num_epochs=None, alpha=None, gamma=None):
     return result
 
 
-args = argparse.ArgumentParser()
-args.add_argument("--num_epochs", type=int, default=10)
-args.add_argument("--train_id", type=str, default=None)
-args.add_argument("--mode", type=str, default=None)
-
-args = args.parse_args()
-main(mode=args.mode, train_id=args.train_id, num_epochs=args.num_epochs)
-# bayes_optimizer = BayesianOptimization(main,
-#                                {
-#                                    'alpha': (0.1, 0.95),
-#                                    'gamma': (0.1, 5)
-#                                },
-#                                random_state=42)
-# bayes_optimizer.maximize(init_points=5, n_iter=30, acq='ei', xi=0.01)
+bayes_optimizer = BayesianOptimization(main,
+                               {
+                                   'alpha': (0.1, 0.95),
+                                   'gamma': (0.1, 5)
+                               },
+                               random_state=42)
+bayes_optimizer.maximize(init_points=5, n_iter=50, acq='ei', xi=0.01)
