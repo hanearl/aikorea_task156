@@ -2,7 +2,7 @@
   "num_classes": 4,
   "lr": 1e-4,
   "cuda": true,
-  "num_epochs": 5,
+  "num_epochs": 10,
   "train_id": "dev_test",
   "model_weight_file": "epoch_4.pth",
   "seed": 42,

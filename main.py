@@ -35,6 +35,8 @@ args.add_argument("--num_epochs", type=int, default=5)
 args.add_argument("--train_id", type=str, default=None)
 args.add_argument("--mode", type=str, default=None)
 args.add_argument("--use_bayes_opt", type=bool, default=False)
+args.add_argument("--use_preprocess", type=bool, default=False)
+args.add_argument("--use_swa", type=bool, default=False)
 
 args = args.parse_args()
 
@@ -64,6 +66,10 @@ def main(alpha=None, gamma=None):
         config.train_id = args.train_id
     if args.num_epochs:
         config.num_epochs = args.num_epochs
+
+    config.use_bayes_opt = args.use_bayes_opt
+    config.use_preprocess = args.use_preprocess
+    config.use_swa = args.use_swa
 
     train_path = os.path.join(config.base_dir, config.train_dir, config.train_id)
     result_path = os.path.join(config.base_dir, config.result_dir, config.train_id)
@@ -105,7 +111,7 @@ if args.use_bayes_opt:
                                        'alpha': (0.1, 0.95),
                                        'gamma': (0.1, 5)
                                    },
-                                   random_state=args.seed)
+                                   random_state=42)
     bayes_optimizer.maximize(init_points=5, n_iter=20, acq='ei', xi=0.01)
 else:
     train_result = main()

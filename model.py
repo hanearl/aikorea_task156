@@ -100,6 +100,7 @@ class Trainer(object):
         train_iterator = trange(int(self.args.num_epochs), desc="Epoch")
 
         fin_result = None
+        f1_max = 0.0
         for epoch in train_iterator:
             epoch_iterator = tqdm(train_dataloader, desc="Iteration")
             for step, batch in enumerate(epoch_iterator):
@@ -139,12 +140,13 @@ class Trainer(object):
 
             logger.info('total train loss %f', tr_loss / global_step)
             fin_result = self.evaluate("validate")  # Only test set available for NSMC
-
+            if epoch >= 2:
+                f1_max = max(fin_result['f1_macro'], f1_max)
             self.save_model(epoch)
 
         with open(os.path.join(self.args.result_dir, self.args.train_id, 'param_seach.txt'), "a", encoding="utf-8") as f:
             f.write('alpha: {}, gamma: {}, f1_macro: {}\n'.format(alpha, gamma, fin_result['f1_macro']))
-        return fin_result['f1_macro']
+        return f1_max
 
     def evaluate(self, mode='test'):
         if mode == 'test':
