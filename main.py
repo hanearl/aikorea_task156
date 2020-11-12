@@ -31,7 +31,7 @@ from config import Config
 4. 어떤 데이터가 학습을 방해하는
 '''
 args = argparse.ArgumentParser()
-args.add_argument("--num_epochs", type=int, default=5)
+args.add_argument("--num_epochs", type=int, default=0)
 args.add_argument("--train_id", type=str, default=None)
 args.add_argument("--mode", type=str, default=None)
 args.add_argument("--use_bayes_opt", type=bool, default=False)
