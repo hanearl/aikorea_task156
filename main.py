@@ -30,6 +30,13 @@ from config import Config
 3. 너무 안좋은 데이터는 버리는게 좋은가?
 4. 어떤 데이터가 학습을 방해하는
 '''
+args = argparse.ArgumentParser()
+args.add_argument("--num_epochs", type=int, default=5)
+args.add_argument("--train_id", type=str, default=None)
+args.add_argument("--mode", type=str, default=None)
+args.add_argument("--use_bayes_opt", type=bool, default=False)
+
+args = args.parse_args()
 
 
 def init_logger(filename):
@@ -40,20 +47,15 @@ def init_logger(filename):
 
 
 def set_seed(args):
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
     random.seed(args.seed)
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     if args.cuda and torch.cuda.is_available():
         torch.cuda.manual_seed_all(args.seed)
 
-args = argparse.ArgumentParser()
-args.add_argument("--num_epochs", type=int, default=5)
-args.add_argument("--train_id", type=str, default=None)
-args.add_argument("--mode", type=str, default=None)
 
-args = args.parse_args()
-
-# def main(mode=None, train_id=None, num_epochs=None, alpha=None, gamma=None):
 def main(alpha=None, gamma=None):
     config = Config("config.json")
     if args.mode:
@@ -97,10 +99,14 @@ def main(alpha=None, gamma=None):
     return result
 
 
-bayes_optimizer = BayesianOptimization(main,
-                               {
-                                   'alpha': (0.1, 0.95),
-                                   'gamma': (0.1, 5)
-                               },
-                               random_state=42)
-bayes_optimizer.maximize(init_points=5, n_iter=50, acq='ei', xi=0.01)
+if args.use_bayes_opt:
+    bayes_optimizer = BayesianOptimization(main,
+                                   {
+                                       'alpha': (0.1, 0.95),
+                                       'gamma': (0.1, 5)
+                                   },
+                                   random_state=args.seed)
+    bayes_optimizer.maximize(init_points=5, n_iter=50, acq='ei', xi=0.01)
+else:
+    train_result = main()
+    logging.info('Train Result %f' % (train_result))
