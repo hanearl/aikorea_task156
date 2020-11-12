@@ -2,10 +2,13 @@ import os
 import copy
 import json
 import logging
+import re
 
 import torch
 from torch.utils import data
 from torch.utils.data import TensorDataset
+import emoji
+from soynlp.normalizer import repeat_normalize
 
 from config import Config
 
@@ -65,11 +68,28 @@ class InputFeatures(object):
         return json.dumps(self.to_dict(), indent=2, sort_keys=True) + "\n"
 
 
+class TextPreprocess(object):
+    def __init__(self):
+        emojis = ''.join(emoji.UNICODE_EMOJI.keys())
+        self.pattern = re.compile(f'[^ .,?!/@$%~％·∼()\x00-\x7Fㄱ-힣{emojis}]+')
+        self.url_pattern = re.compile(
+            r'https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)')
+
+    def clean(self, text):
+        text = self.pattern.sub(' ', text)
+        text = self.url_pattern.sub('', text)
+        text = text.strip()
+        text = repeat_normalize(text, num_repeats=2)
+        return text
+
+
 class NsmcProcessor(object):
     """Processor for the NSMC data set """
 
-    def __init__(self, root):
+    def __init__(self, root, use_preprocess=True):
         self.root = root
+        self.text_preprocessor = TextPreprocess()
+        self.use_text_preprocess = use_preprocess
 
     @classmethod
     def _read_file(cls, input_file, quotechar=None):
@@ -89,7 +109,10 @@ class NsmcProcessor(object):
             if len(line) != 2:
                 continue
 
-            text_a = line[0]
+            if self.use_text_preprocess:
+                text_a = self.text_preprocessor.clean(line[0])
+            else:
+                text_a = line[0]
             label = int(line[1])
             if i % 1000 == 0:
                 logger.info(lines[i])
