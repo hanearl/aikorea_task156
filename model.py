@@ -1,5 +1,7 @@
 import os
 import logging
+import math
+
 from tqdm import tqdm, trange
 
 import numpy as np
@@ -7,13 +9,12 @@ import torch
 from torch.utils.data import DataLoader, RandomSampler, SequentialSampler
 from transformers import AdamW, get_linear_schedule_with_warmup
 from transformers import AutoConfig, BertForSequenceClassification
+from torchcontrib.optim import SWA
 import torch.nn.functional as F
 
 from sklearn.metrics import f1_score, precision_recall_fscore_support
 
 from loss import FocalLoss
-from config import Config
-import math
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +74,13 @@ class Trainer(object):
             {'params': [p for n, p in self.model.named_parameters() if any(nd in n for nd in no_decay)],
              'weight_decay': 0.0}
         ]
-        self.optimizer = optimizer = AdamW(optimizer_grouped_parameters, lr=self.args.lr, eps=1e-8)
+
+        if self.args.use_swa:
+            base_opt = AdamW(optimizer_grouped_parameters, lr=self.args.lr, eps=1e-8)
+            self.optimizer = optimizer = SWA(base_opt)
+        else:
+            self.optimizer = optimizer = AdamW(optimizer_grouped_parameters, lr=self.args.lr, eps=1e-8)
+
         self.scheduler = scheduler = get_linear_schedule_with_warmup(self.optimizer, num_warmup_steps=0,
                                                                      num_training_steps=t_total)
         self.criterion = FocalLoss(alpha=alpha, gamma=gamma)
@@ -94,7 +101,6 @@ class Trainer(object):
 
         fin_result = None
         for epoch in train_iterator:
-            print(len(train_dataloader))
             epoch_iterator = tqdm(train_dataloader, desc="Iteration")
             for step, batch in enumerate(epoch_iterator):
                 self.model.train()
@@ -118,6 +124,8 @@ class Trainer(object):
                 loss.backward()
                 self.optimizer.step()
                 self.scheduler.step()  # Update learning rate schedule
+                if self.args.use_swa and step > 10 and step % 5 == 0:
+                    self.optimizer.update_swa()
 
                 self.model.zero_grad()
                 self.optimizer.zero_grad()
@@ -125,6 +133,9 @@ class Trainer(object):
                 tr_loss += loss.item()
                 global_step += 1
                 logger.info('train loss %f', loss.item())
+
+            if self.args.use_swa:
+                self.optimizer.swap_swa_sgd()
 
             logger.info('total train loss %f', tr_loss / global_step)
             fin_result = self.evaluate("validate")  # Only test set available for NSMC

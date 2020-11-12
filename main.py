@@ -81,7 +81,7 @@ def main(alpha=None, gamma=None):
     # get data loader
     tokenizer = AutoTokenizer.from_pretrained(config.bert_model_name)
 
-    param = {"root": data_path, "batch_size": config.batch_size, "tokenizer": tokenizer}
+    param = {"root": data_path, "batch_size": config.batch_size, "tokenizer": tokenizer, "config": config}
     train_dataloader = data_loader(**param, phase='train')
     validate_dataloader = data_loader(**param, phase='validate')
     test_dataloader = data_loader(**param, phase='test')
@@ -106,7 +106,7 @@ if args.use_bayes_opt:
                                        'gamma': (0.1, 5)
                                    },
                                    random_state=args.seed)
-    bayes_optimizer.maximize(init_points=5, n_iter=50, acq='ei', xi=0.01)
+    bayes_optimizer.maximize(init_points=5, n_iter=20, acq='ei', xi=0.01)
 else:
     train_result = main()
     logging.info('Train Result %f' % (train_result))

@@ -10,10 +10,7 @@ from torch.utils.data import TensorDataset
 import emoji
 from soynlp.normalizer import repeat_normalize
 
-from config import Config
-
 logger = logging.getLogger(__name__)
-config = Config("config.json")
 
 
 class InputExample(object):
@@ -71,13 +68,24 @@ class InputFeatures(object):
 class TextPreprocess(object):
     def __init__(self):
         emojis = ''.join(emoji.UNICODE_EMOJI.keys())
-        self.pattern = re.compile(f'[^ .,?!/@$%~％·∼()\x00-\x7Fㄱ-힣{emojis}]+')
-        self.url_pattern = re.compile(
+        p0 = re.compile(f'[^ .,?!/@$%~％·∼()\x00-\x7Fㄱ-힣{emojis}]+')
+        p1 = re.compile(r'(\"){2,}')
+        p2 = re.compile(r'(\?){2,}')
+        p3 = re.compile(r'(\!){2,}')
+        p4 = re.compile(r'(\.){2,}')
+        p5 = re.compile(r'(\~){2,}')
+        p6 = re.compile(r'(\;){2,}')
+        p7 = re.compile(r'(\^){2,}')
+        p8 = re.compile(r'(\*){2,}')
+        p9 = re.compile(
             r'https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)')
 
+        self.pattern = [(' ', p0), ("", p1), ("?", p2), ("!", p3), ("...", p4), ("~", p5), (";", p6), ("^^", p7), ("*", p8),
+                   (" ", p9)]
+
     def clean(self, text):
-        text = self.pattern.sub(' ', text)
-        text = self.url_pattern.sub('', text)
+        for ch, sub_pattern in self.pattern:
+            text = sub_pattern.sub(ch, text)
         text = text.strip()
         text = repeat_normalize(text, num_repeats=2)
         return text
@@ -86,7 +94,7 @@ class TextPreprocess(object):
 class NsmcProcessor(object):
     """Processor for the NSMC data set """
 
-    def __init__(self, root, use_preprocess=True):
+    def __init__(self, root, use_preprocess=False):
         self.root = root
         self.text_preprocessor = TextPreprocess()
         self.use_text_preprocess = use_preprocess
@@ -180,8 +188,8 @@ def convert_examples_to_features(examples, max_seq_len, tokenizer):
     return features
 
 
-def load_and_cache_examples(root, tokenizer, mode):
-    processor = processors['nsmc'](root)
+def load_and_cache_examples(root, tokenizer, mode, config):
+    processor = processors['nsmc'](root, use_preprocess=config.use_preprocess)
 
     # Load data features from cache or dataset file
     cached_file_name = 'cached_{}_{}_{}_{}'.format(
@@ -217,8 +225,8 @@ def load_and_cache_examples(root, tokenizer, mode):
     return dataset
 
 
-def data_loader(root, phase, batch_size, tokenizer):
-    dataset = load_and_cache_examples(root, tokenizer, mode=phase)
+def data_loader(root, phase, batch_size, tokenizer, config):
+    dataset = load_and_cache_examples(root, tokenizer, config=config, mode=phase)
 
     if phase == 'train':
         sampler = data.RandomSampler(dataset)

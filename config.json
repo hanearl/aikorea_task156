@@ -2,9 +2,9 @@
   "num_classes": 4,
   "lr": 1e-4,
   "cuda": true,
-  "num_epochs": 4,
+  "num_epochs": 5,
   "train_id": "dev_test",
-  "model_weight_file": "3.pth",
+  "model_weight_file": "epoch_4.pth",
   "seed": 42,
   "bert_model_name": "beomi/kcbert-base",
   "max_seq_len": 100,
@@ -15,5 +15,6 @@
   "prediction_file": "prediction.tsv",
   "batch_size": 128,
   "mode": "train",
-  "gradient_accumulation_steps": 1
+  "use_preprocess": true,
+  "use_swa": false
 }
