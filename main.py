@@ -38,6 +38,9 @@ args.add_argument("--mode", type=str, default=None)
 args.add_argument("--use_bayes_opt", type=bool, default=False)
 args.add_argument("--use_preprocess", type=bool, default=False)
 args.add_argument("--use_swa", type=bool, default=False)
+args.add_argument("--config_path", type=str, default="")
+args.add_argument("--base_dir", type=str, default=None)
+
 
 args = args.parse_args()
 
@@ -60,13 +63,15 @@ def set_seed(args):
 
 
 def main(alpha=None, gamma=None):
-    config = Config("config.json")
+    config = Config(os.path.join(args.config_path, "config.json"))
     if args.mode:
         config.mode = args.mode
     if args.train_id:
         config.train_id = args.train_id
     if args.num_epochs:
         config.num_epochs = args.num_epochs
+    if args.base_dir:
+        config.base_dir = args.base_dir
 
     config.use_bayes_opt = args.use_bayes_opt
     config.use_preprocess = args.use_preprocess
