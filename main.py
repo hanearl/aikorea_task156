@@ -8,29 +8,20 @@ import random
 import logging
 import argparse
 
-from transformers import AutoTokenizer, AutoModel, AutoConfig
+from transformers import AutoTokenizer, AutoConfig, AutoModelForSequenceClassification
+from transformers import ElectraTokenizer, ElectraForSequenceClassification, ElectraConfig
+from transformers import XLMRobertaTokenizer, XLMRobertaConfig, XLMRobertaForSequenceClassification
+from transformers import DistilBertConfig, DistilBertForSequenceClassification
+from transformers import BertConfig, BertForSequenceClassification
+
+from tokenization_kobert import KoBertTokenizer
+
 from bayes_opt import BayesianOptimization
 
 from model import Trainer
 from dataloader import data_loader
 from config import Config
 
-
-'''
-테스트 리스트
-1. baseline 설정
-2. focal loss
-3. 전처리 추가하기
-4. SWA 적용해보기
-4. kcbert-large, electra-small, electra-base 등 모델 테스트 (large는 별로!)
-5. bert 레이어 별 cls 결과 및 앙상블 결과
-
-고민거리
-1. confusion matrix 어느 tag가 정확도가 안나오나
-2. 틀린 case 들 모아서 분석하기
-3. 너무 안좋은 데이터는 버리는게 좋은가?
-4. 어떤 데이터가 학습을 방해하는
-'''
 args = argparse.ArgumentParser()
 args.add_argument("--num_epochs", type=int, default=0)
 args.add_argument("--alpha", type=float, default=None)
@@ -40,12 +31,49 @@ args.add_argument("--mode", type=str, default=None)
 args.add_argument("--use_bayes_opt", type=bool, default=False)
 args.add_argument("--use_preprocess", type=bool, default=False)
 args.add_argument("--use_swa", type=bool, default=False)
-args.add_argument("--config_path", type=str, default="")
+args.add_argument("--config_path", type=str, default="config.json")
 args.add_argument("--base_dir", type=str, default=None)
 
 
 args = args.parse_args()
 
+model_infos = {
+        "beomi/kcbert-base": {
+            'bert_config_class': AutoConfig,
+            'bert_tokenizer_class': AutoTokenizer,
+            'bert_model_class': BertForSequenceClassification
+        },
+        "beomi/kcbert-large": {
+            'bert_config_class': AutoConfig,
+            'bert_tokenizer_class': AutoTokenizer,
+            'bert_model_class': BertForSequenceClassification
+        },
+        "monologg/koelectra-base-v3-discriminator": {
+            'bert_config_class': ElectraConfig,
+            'bert_tokenizer_class': ElectraTokenizer,
+            'bert_model_class': ElectraForSequenceClassification
+        },
+        "jason9693/soongsil-roberta-base": {
+            'bert_config_class': AutoConfig,
+            'bert_tokenizer_class': AutoTokenizer,
+            'bert_model_class': AutoModelForSequenceClassification
+        },
+        "xlm-roberta-base": {
+            'bert_config_class': XLMRobertaConfig,
+            'bert_tokenizer_class': XLMRobertaTokenizer,
+            'bert_model_class': XLMRobertaForSequenceClassification
+        },
+        "monologg/distilkobert": {
+            'bert_config_class': DistilBertConfig,
+            'bert_tokenizer_class': KoBertTokenizer,
+            'bert_model_class': DistilBertForSequenceClassification
+        },
+        "monologg/kobert": {
+            'bert_config_class': BertConfig,
+            'bert_tokenizer_class': KoBertTokenizer,
+            'bert_model_class': BertForSequenceClassification
+        }
+    }
 
 def init_logger(filename):
     logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
@@ -92,16 +120,29 @@ def main(alpha=None, gamma=None):
     init_logger(os.path.join(result_path, 'log.txt'))
     set_seed(config)
 
+    model_classes = model_infos[config.bert_model_name]
     # get data loader
-    tokenizer = AutoTokenizer.from_pretrained(config.bert_model_name)
+    tokenizer = model_classes['bert_tokenizer_class'].from_pretrained(config.bert_model_name)
 
-    param = {"root": data_path, "batch_size": config.batch_size, "tokenizer": tokenizer, "config": config}
+    is_segment_id = True \
+        if config.bert_model_name not in ['xlm-roberta-base', 'monologg/distilkobert', 'jason9693/soongsil-roberta-base'] \
+        else False
+    param = {
+        "root": data_path,
+        "batch_size": config.batch_size,
+        "tokenizer": tokenizer,
+        "max_seq_len": config.max_seq_len,
+        "result_path": result_path,
+        "is_segment_id": is_segment_id
+    }
     train_dataloader = data_loader(**param, phase='train')
     validate_dataloader = data_loader(**param, phase='validate')
     test_dataloader = data_loader(**param, phase='test')
 
+
     # create model config 확인
-    model = Trainer(config, train_dataloader, validate_dataloader, test_dataloader)
+    model = Trainer(config, model_classes['bert_config_class'], model_classes['bert_model_class'], \
+                    train_dataloader, validate_dataloader, test_dataloader)
 
     if config.mode == 'train':
         result = model.train(alpha=alpha, gamma=gamma)

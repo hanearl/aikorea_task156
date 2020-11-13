@@ -20,7 +20,7 @@ import sklearn.metrics
 
 args = argparse.ArgumentParser()
 args.add_argument("--train_id", type=str, default=None)
-args.add_argument("--mode", type=str, default=None)
+args.add_argument("--mode", type=str, default='val')
 args.add_argument("--config_path", type=str, default=None)
 
 args = args.parse_args()
@@ -59,7 +59,10 @@ def evaluate(data_path, model_path, bert_model_info, result_path, batch_size, ma
         "result_path": result_path,
         "is_segment_id": is_segment_id
     }
-    dataloader = data_loader(**param, phase='validate')
+    if args.mode == 'val':
+        dataloader = data_loader(**param, phase='validate')
+    else:
+        dataloader = data_loader(**param, phase='test')
 
     model = load_model(bert_config_class, bert_model_class, bert_model_name)
     state = torch.load(os.path.join(model_path))
@@ -109,7 +112,8 @@ if __name__ == '__main__':
     config = Config()
     logits = None
 
-    labels = read_test_file(os.path.join(config.base_dir, config.data_dir, 'validate.tsv'))
+    if args.mode == 'val':
+        labels = read_test_file(os.path.join(config.base_dir, config.data_dir, 'validate.tsv'))
 
     model_infos = [
         {
@@ -164,14 +168,31 @@ if __name__ == '__main__':
 
     # model_infos = [
     #     {
+    #         "train_id": 'baseline',
+    #         "bert_model_info": {'bert_model_name': 'beomi/kcbert-base',
+    #                             'bert_config_class': AutoConfig,
+    #                             'bert_tokenizer_class': AutoTokenizer,
+    #                             'bert_model_class': BertForSequenceClassification},
+    #         "model_weight_files": ['epoch_4.pth']
+    #     },
+    #     {
+    #         "train_id": 'electra_test',
+    #         "bert_model_info": {'bert_model_name': 'monologg/koelectra-base-v3-discriminator',
+    #                             'bert_config_class': ElectraConfig,
+    #                             'bert_tokenizer_class': ElectraTokenizer,
+    #                             'bert_model_class': ElectraForSequenceClassification},
+    #         "model_weight_files": ['epoch_5.pth']
+    #     },
+    #     {
     #         "train_id": 'kcbert_v2',
     #         "bert_model_info": {'bert_model_name': 'jason9693/soongsil-roberta-base',
     #                             'bert_config_class': AutoConfig,
     #                             'bert_tokenizer_class': AutoTokenizer,
     #                             'bert_model_class': AutoModelForSequenceClassification},
-    #         "model_weight_files": ['epoch_3.pth', 'epoch_4.pth']
+    #         "model_weight_files": ['epoch_5.pth', 'epoch_6.pth']
     #     }
     # ]
+
     for info in model_infos:
         bert_model_name = info["bert_model_info"]["bert_model_name"]
         train_id = info["train_id"]
@@ -208,11 +229,13 @@ if __name__ == '__main__':
             with open(os.path.join(config.base_dir, 'prediction.tsv'), "w", encoding="utf-8") as f:
                 for pred in preds:
                     f.write("{}\n".format(pred))
-            f1_tag = sklearn.metrics.f1_score(labels, preds, average='weighted')
-            f1_tag2 = sklearn.metrics.f1_score(labels, preds, average='macro')
-            f1_tag3 = sklearn.metrics.f1_score(labels, preds, average=None)
 
-            print('f1_tag : ' + str(f1_tag))
-            print('f1_tag2 : ' + str(f1_tag2))
-            print(f1_tag3)
-            print('')
+            if args.mode == 'val':
+                f1_tag = sklearn.metrics.f1_score(labels, preds, average='weighted')
+                f1_tag2 = sklearn.metrics.f1_score(labels, preds, average='macro')
+                f1_tag3 = sklearn.metrics.f1_score(labels, preds, average=None)
+
+                print('f1_tag : ' + str(f1_tag))
+                print('f1_tag2 : ' + str(f1_tag2))
+                print(f1_tag3)
+                print('')

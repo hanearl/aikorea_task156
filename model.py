@@ -1,16 +1,11 @@
 import os
 import logging
-import math
 
 from tqdm import tqdm, trange
 
 import numpy as np
 import torch
-from torch.utils.data import DataLoader, RandomSampler, SequentialSampler
 from transformers import AdamW, get_linear_schedule_with_warmup
-from transformers import AutoConfig, BertForSequenceClassification
-import torch.nn.functional as F
-from torch.optim.lr_scheduler import CyclicLR
 from torchcontrib.optim import SWA
 
 from sklearn.metrics import f1_score, precision_recall_fscore_support
@@ -36,7 +31,7 @@ def acc_score(preds, labels):
 
 
 class Trainer(object):
-    def __init__(self, args, train_dataloader=None, validate_dataloader=None, test_dataloader=None):
+    def __init__(self, args, config_class, model_class, train_dataloader=None, validate_dataloader=None, test_dataloader=None):
         self.args = args
         self.train_dataloader = train_dataloader
         self.validate_dataloader = validate_dataloader
@@ -45,8 +40,8 @@ class Trainer(object):
         self.label_lst = [i for i in range(self.args.num_classes)]
         self.num_labels = self.args.num_classes
 
-        self.config_class = AutoConfig
-        self.model_class = BertForSequenceClassification
+        self.config_class = config_class
+        self.model_class = model_class
 
         self.config = self.config_class.from_pretrained(self.args.bert_model_name,
                                                         num_labels=self.num_labels,
@@ -55,6 +50,11 @@ class Trainer(object):
                                                                   enumerate(self.label_lst)},
                                                         label2id={label: i for i, label in enumerate(self.label_lst)})
         self.model = self.model_class.from_pretrained(self.args.bert_model_name, config=self.config)
+
+        self.is_segment_id = True \
+            if args.bert_model_name not in ['xlm-roberta-base', 'monologg/distilkobert',
+                                              'jason9693/soongsil-roberta-base'] \
+            else False
         self.optimizer = None
         self.scheduler = None
 
@@ -112,9 +112,21 @@ class Trainer(object):
             for step, batch in enumerate(epoch_iterator):
 
                 batch = tuple(t.to(self.device) for t in batch)  # GPU or CPU
-                inputs = {'input_ids': batch[0], 'attention_mask': batch[1], 'labels': batch[3],
-                          'token_type_ids': batch[2]}
-
+                if not self.is_segment_id:
+                    inputs = {
+                        'input_ids': batch[0],
+                        'attention_mask': batch[1],
+                        'labels': batch[2]
+                    }
+                    lbs = batch[2]
+                else:
+                    inputs = {
+                        'input_ids': batch[0],
+                        'attention_mask': batch[1],
+                        "token_type_ids": batch[2],
+                        'labels': batch[3]
+                    }
+                    lbs = batch[3]
                 # outputs = self.model(**inputs)
                 # loss = outputs[0]
 
@@ -122,8 +134,8 @@ class Trainer(object):
                 loss, logits = self.model(**inputs)
                 logits = torch.sigmoid(logits)
 
-                labels = torch.zeros((len(batch[3]), self.num_labels)).to(self.device)
-                labels[range(len(batch[3])), batch[3]] = 1
+                labels = torch.zeros((len(lbs), self.num_labels)).to(self.device)
+                labels[range(len(lbs)), lbs] = 1
 
                 loss = self.criterion(logits, labels)
 
@@ -142,6 +154,7 @@ class Trainer(object):
             if epoch >= 4 and self.args.use_swa:
                 self.optimizer.swap_swa_sgd()
 
+            logger.info("  Num Epochs = %d", self.args.num_epochs)
             fin_result = self.evaluate("validate")
             self.save_model(epoch)
             self.model.train()
@@ -179,8 +192,20 @@ class Trainer(object):
         for batch in tqdm(dataloader, desc="Evaluating"):
             batch = tuple(t.to(self.device) for t in batch)
             with torch.no_grad():
-                inputs = {'input_ids': batch[0], 'attention_mask': batch[1], 'labels': batch[3],
-                          'token_type_ids': batch[2]}
+                if not self.is_segment_id:
+                    inputs = {
+                        'input_ids': batch[0],
+                        'attention_mask': batch[1],
+                        'labels': batch[2]
+                    }
+                else:
+                    inputs = {
+                        'input_ids': batch[0],
+                        'attention_mask': batch[1],
+                        "token_type_ids": batch[2],
+                        'labels': batch[3]
+                    }
+
                 outputs = self.model(**inputs)
                 tmp_eval_loss, logits = outputs[:2]
 
