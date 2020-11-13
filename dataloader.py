@@ -94,10 +94,9 @@ class TextPreprocess(object):
 class NsmcProcessor(object):
     """Processor for the NSMC data set """
 
-    def __init__(self, root, use_preprocess=False):
+    def __init__(self, root):
         self.root = root
         self.text_preprocessor = TextPreprocess()
-        self.use_text_preprocess = use_preprocess
 
     @classmethod
     def _read_file(cls, input_file, quotechar=None):
@@ -117,10 +116,7 @@ class NsmcProcessor(object):
             if len(line) != 2:
                 continue
 
-            if self.use_text_preprocess:
-                text_a = self.text_preprocessor.clean(line[0])
-            else:
-                text_a = line[0]
+            text_a = self.text_preprocessor.clean(line[0])
             label = int(line[1])
             if i % 1000 == 0:
                 logger.info(lines[i])
@@ -188,14 +184,13 @@ def convert_examples_to_features(examples, max_seq_len, tokenizer):
     return features
 
 
-def load_and_cache_examples(root, tokenizer, mode, config):
-    processor = processors['nsmc'](root, use_preprocess=config.use_preprocess)
+def load_and_cache_examples(root, tokenizer, mode, max_seq_len, result_path):
+    processor = processors['nsmc'](root)
 
     # Load data features from cache or dataset file
-    cached_file_name = 'cached_{}_{}_{}_{}'.format(
-        'nsmc', list(filter(None, config.bert_model_name.split("/"))).pop(), config.max_seq_len, mode)
+    cached_file_name = 'cached_{}_{}_{}'.format('nsmc', max_seq_len, mode)
 
-    cached_features_file = os.path.join(config.base_dir, config.result_dir, config.train_id, cached_file_name)
+    cached_features_file = os.path.join(result_path, cached_file_name)
     if os.path.exists(cached_features_file):
         logger.info("Loading features from cached file %s", cached_features_file)
         features = torch.load(cached_features_file)
@@ -210,7 +205,7 @@ def load_and_cache_examples(root, tokenizer, mode, config):
         else:
             raise Exception("For mode, Only train, dev, test is available")
 
-        features = convert_examples_to_features(examples, config.max_seq_len, tokenizer)
+        features = convert_examples_to_features(examples, max_seq_len, tokenizer)
         logger.info("Saving features into cached file %s", cached_features_file)
         torch.save(features, cached_features_file)
 
@@ -225,8 +220,8 @@ def load_and_cache_examples(root, tokenizer, mode, config):
     return dataset
 
 
-def data_loader(root, phase, batch_size, tokenizer, config):
-    dataset = load_and_cache_examples(root, tokenizer, config=config, mode=phase)
+def data_loader(root, phase, batch_size, tokenizer, max_seq_len, result_path):
+    dataset = load_and_cache_examples(root, tokenizer, mode=phase, max_seq_len=max_seq_len, result_path=result_path)
 
     if phase == 'train':
         sampler = data.RandomSampler(dataset)
