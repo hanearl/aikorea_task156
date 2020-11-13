@@ -35,6 +35,7 @@ args = argparse.ArgumentParser()
 args.add_argument("--num_epochs", type=int, default=0)
 args.add_argument("--train_id", type=str, default=None)
 args.add_argument("--mode", type=str, default=None)
+args.add_argument("--config_path", type=str, default="")
 args.add_argument("--use_bayes_opt", type=bool, default=False)
 args.add_argument("--use_preprocess", type=bool, default=False)
 args.add_argument("--use_swa", type=bool, default=False)
@@ -60,7 +61,7 @@ def set_seed(args):
 
 
 def main(alpha=None, gamma=None):
-    config = Config("config.json")
+    config = Config(os.path.join(args.config_path, "config.json"))
     if args.mode:
         config.mode = args.mode
     if args.train_id:
