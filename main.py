@@ -8,7 +8,7 @@ import random
 import logging
 import argparse
 
-from transformers import XLMRobertaTokenizer
+from tokenization_kobert import KoBertTokenizer
 from bayes_opt import BayesianOptimization
 
 from model import Trainer
@@ -86,7 +86,7 @@ def main(alpha=None, gamma=None):
     set_seed(config)
 
     # get data loader
-    tokenizer = XLMRobertaTokenizer.from_pretrained(config.bert_model_name)
+    tokenizer = KoBertTokenizer.from_pretrained(config.bert_model_name)
 
     param = {"root": data_path, "batch_size": config.batch_size, "tokenizer": tokenizer, "config": config}
     train_dataloader = data_loader(**param, phase='train')

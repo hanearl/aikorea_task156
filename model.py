@@ -8,7 +8,7 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader, RandomSampler, SequentialSampler
 from transformers import AdamW, get_linear_schedule_with_warmup
-from transformers import XLMRobertaConfig, XLMRobertaForSequenceClassification
+from transformers import DistilBertConfig, DistilBertForSequenceClassification
 import torch.nn.functional as F
 from torch.optim.lr_scheduler import CyclicLR
 from torchcontrib.optim import SWA
@@ -45,8 +45,8 @@ class Trainer(object):
         self.label_lst = [i for i in range(self.args.num_classes)]
         self.num_labels = self.args.num_classes
 
-        self.config_class = XLMRobertaConfig
-        self.model_class = XLMRobertaForSequenceClassification
+        self.config_class = DistilBertConfig
+        self.model_class = DistilBertForSequenceClassification
 
         self.config = self.config_class.from_pretrained(self.args.bert_model_name,
                                                         num_labels=self.num_labels,
