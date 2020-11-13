@@ -15,6 +15,7 @@ from model import Trainer
 from dataloader import data_loader
 from config import Config
 
+
 '''
 테스트 리스트
 1. baseline 설정
