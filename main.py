@@ -63,7 +63,7 @@ def set_seed(args):
 
 
 def main(alpha=None, gamma=None):
-    config = Config(os.path.join(args.config_path, "config.json"))
+    config = Config(args.config_path)
     if args.mode:
         config.mode = args.mode
     if args.train_id:
