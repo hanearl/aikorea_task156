@@ -8,9 +8,10 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader, RandomSampler, SequentialSampler
 from transformers import AdamW, get_linear_schedule_with_warmup
-from transformers import AutoConfig, BertForSequenceClassification
-from torchcontrib.optim import SWA
+from transformers import ElectraConfig, ElectraForSequenceClassification
 import torch.nn.functional as F
+from torch.optim.lr_scheduler import CyclicLR
+from torchcontrib.optim import SWA
 
 from sklearn.metrics import f1_score, precision_recall_fscore_support
 
@@ -44,8 +45,8 @@ class Trainer(object):
         self.label_lst = [i for i in range(self.args.num_classes)]
         self.num_labels = self.args.num_classes
 
-        self.config_class = AutoConfig
-        self.model_class = BertForSequenceClassification
+        self.config_class = ElectraConfig
+        self.model_class = ElectraForSequenceClassification
 
         self.config = self.config_class.from_pretrained(self.args.bert_model_name,
                                                         num_labels=self.num_labels,
@@ -77,12 +78,15 @@ class Trainer(object):
 
         if self.args.use_swa:
             base_opt = AdamW(optimizer_grouped_parameters, lr=self.args.lr, eps=1e-8)
-            self.optimizer = optimizer = SWA(base_opt)
+            self.optimizer = SWA(base_opt, swa_start=4 * len(train_dataloader), swa_freq=100, swa_lr=5e-5)
+            self.optimizer.param_groups = self.optimizer.optimizer.param_groups
+            self.optimizer.state = self.optimizer.optimizer.state
+            self.optimizer.defaults = self.optimizer.optimizer.defaults
+
         else:
             self.optimizer = optimizer = AdamW(optimizer_grouped_parameters, lr=self.args.lr, eps=1e-8)
-
-        self.scheduler = scheduler = get_linear_schedule_with_warmup(self.optimizer, num_warmup_steps=0,
-                                                                     num_training_steps=t_total)
+        self.scheduler = scheduler = get_linear_schedule_with_warmup(self.optimizer, num_warmup_steps=100,
+                                                                     num_training_steps=self.args.num_epochs * len(train_dataloader))
         self.criterion = FocalLoss(alpha=alpha, gamma=gamma)
 
         # Train!
@@ -101,10 +105,11 @@ class Trainer(object):
 
         fin_result = None
         f1_max = 0.0
+        self.model.train()
+
         for epoch in train_iterator:
             epoch_iterator = tqdm(train_dataloader, desc="Iteration")
             for step, batch in enumerate(epoch_iterator):
-                self.model.train()
 
                 batch = tuple(t.to(self.device) for t in batch)  # GPU or CPU
                 inputs = {'input_ids': batch[0], 'attention_mask': batch[1], 'labels': batch[3],
@@ -125,8 +130,6 @@ class Trainer(object):
                 loss.backward()
                 self.optimizer.step()
                 self.scheduler.step()  # Update learning rate schedule
-                if self.args.use_swa and step > 10 and step % 5 == 0:
-                    self.optimizer.update_swa()
 
                 self.model.zero_grad()
                 self.optimizer.zero_grad()
@@ -135,17 +138,23 @@ class Trainer(object):
                 global_step += 1
                 logger.info('train loss %f', loss.item())
 
-            if self.args.use_swa:
+            logger.info('total train loss %f', tr_loss / global_step)
+            if epoch >= 4 and self.args.use_swa:
                 self.optimizer.swap_swa_sgd()
 
-            logger.info('total train loss %f', tr_loss / global_step)
-            fin_result = self.evaluate("validate")  # Only test set available for NSMC
-            if epoch >= 2:
-                f1_max = max(fin_result['f1_macro'], f1_max)
+            fin_result = self.evaluate("validate")
             self.save_model(epoch)
+            self.model.train()
+            if epoch >= 4 and self.args.use_swa:
+                self.optimizer.swap_swa_sgd()
 
-        with open(os.path.join(self.args.result_dir, self.args.train_id, 'param_seach.txt'), "a", encoding="utf-8") as f:
-            f.write('alpha: {}, gamma: {}, f1_macro: {}\n'.format(alpha, gamma, fin_result['f1_macro']))
+            f1_max = max(fin_result['f1_macro'], f1_max)
+
+        if epoch >= 4 and self.args.use_swa:
+            self.optimizer.swap_swa_sgd()
+        with open(os.path.join(self.args.result_dir, self.args.train_id, 'param_seach.txt'), "a",
+                  encoding="utf-8") as f:
+            f.write('alpha: {}, gamma: {}, f1_macro: {}\n'.format(alpha, gamma, f1_max))
         return f1_max
 
     def evaluate(self, mode='test'):

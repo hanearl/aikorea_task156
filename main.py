@@ -8,12 +8,13 @@ import random
 import logging
 import argparse
 
-from transformers import AutoTokenizer, AutoModel, AutoConfig
+from transformers import ElectraTokenizer, AutoModel, AutoConfig
 from bayes_opt import BayesianOptimization
 
 from model import Trainer
 from dataloader import data_loader
 from config import Config
+
 
 '''
 테스트 리스트
@@ -85,7 +86,7 @@ def main(alpha=None, gamma=None):
     set_seed(config)
 
     # get data loader
-    tokenizer = AutoTokenizer.from_pretrained(config.bert_model_name)
+    tokenizer = ElectraTokenizer.from_pretrained(config.bert_model_name)
 
     param = {"root": data_path, "batch_size": config.batch_size, "tokenizer": tokenizer, "config": config}
     train_dataloader = data_loader(**param, phase='train')
