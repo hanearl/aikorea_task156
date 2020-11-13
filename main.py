@@ -82,7 +82,7 @@ def main(alpha=None, gamma=None):
     if not os.path.isdir(result_path):
         os.mkdir(result_path)
 
-    init_logger(os.path.join(config.result_dir, config.train_id, 'log.txt'))
+    init_logger(os.path.join(result_path, 'log.txt'))
     set_seed(config)
 
     # get data loader
