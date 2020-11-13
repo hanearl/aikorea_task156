@@ -8,7 +8,7 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader, RandomSampler, SequentialSampler
 from transformers import AdamW, get_linear_schedule_with_warmup
-from transformers import DistilBertConfig, DistilBertForSequenceClassification
+from transformers import BertConfig, BertForSequenceClassification
 import torch.nn.functional as F
 from torch.optim.lr_scheduler import CyclicLR
 from torchcontrib.optim import SWA
@@ -45,8 +45,8 @@ class Trainer(object):
         self.label_lst = [i for i in range(self.args.num_classes)]
         self.num_labels = self.args.num_classes
 
-        self.config_class = DistilBertConfig
-        self.model_class = DistilBertForSequenceClassification
+        self.config_class = BertConfig
+        self.model_class = BertForSequenceClassification
 
         self.config = self.config_class.from_pretrained(self.args.bert_model_name,
                                                         num_labels=self.num_labels,
@@ -151,7 +151,7 @@ class Trainer(object):
 
         if epoch >= 4 and self.args.use_swa:
             self.optimizer.swap_swa_sgd()
-        with open(os.path.join(self.args.result_dir, self.args.train_id, 'param_seach.txt'), "a",
+        with open(os.path.join(self.args.base_dir, self.args.result_dir, self.args.train_id, 'param_seach.txt'), "a",
                   encoding="utf-8") as f:
             f.write('alpha: {}, gamma: {}, f1_macro: {}\n'.format(alpha, gamma, f1_max))
         return f1_max
@@ -228,12 +228,12 @@ class Trainer(object):
             'optimizer': self.optimizer.state_dict(),
             'scheduler': self.scheduler.state_dict()
         }
-        torch.save(state, os.path.join(self.args.result_dir, self.args.train_id, 'epoch_' + str(num) + '.pth'))
+        torch.save(state, os.path.join(self.args.base_dir, self.args.result_dir, self.args.train_id, 'epoch_' + str(num) + '.pth'))
         logger.info('model saved')
 
     def load_model(self, model_name):
 
-        state = torch.load(os.path.join(self.args.result_dir, self.args.train_id, model_name))
+        state = torch.load(os.path.join(self.args.base_dir, self.args.result_dir, self.args.train_id, model_name))
         self.model.load_state_dict(state['model'])
         if self.optimizer is not None:
             self.optimizer.load_state_dict(state['optimizer'])
