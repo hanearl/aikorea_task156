@@ -8,7 +8,7 @@ import random
 import logging
 import argparse
 
-from transformers import AutoTokenizer, AutoModel, AutoConfig
+from transformers import XLMRobertaTokenizer
 from bayes_opt import BayesianOptimization
 
 from model import Trainer
@@ -35,13 +35,14 @@ args.add_argument("--num_epochs", type=int, default=0)
 args.add_argument("--train_id", type=str, default=None)
 args.add_argument("--mode", type=str, default=None)
 args.add_argument("--use_bayes_opt", type=bool, default=False)
-args.add_argument("--use_preprocess", type=bool, default=False)
-args.add_argument("--use_swa", type=bool, default=False)
+args.add_argument("--use_preprocess", type=bool, default=True)
+args.add_argument("--use_swa", type=bool, default=True)
 
 args = args.parse_args()
 
 
 def init_logger(filename):
+
     logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
                         datefmt='%m/%d/%Y %H:%M:%S',
                         level=logging.INFO,
@@ -85,7 +86,7 @@ def main(alpha=None, gamma=None):
     set_seed(config)
 
     # get data loader
-    tokenizer = AutoTokenizer.from_pretrained(config.bert_model_name)
+    tokenizer = XLMRobertaTokenizer.from_pretrained(config.bert_model_name)
 
     param = {"root": data_path, "batch_size": config.batch_size, "tokenizer": tokenizer, "config": config}
     train_dataloader = data_loader(**param, phase='train')

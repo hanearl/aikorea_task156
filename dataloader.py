@@ -159,13 +159,12 @@ def convert_examples_to_features(examples, max_seq_len, tokenizer):
 
         input_ids = tokens['input_ids'][0].tolist()
         attention_mask = tokens['attention_mask'][0].tolist()
-        token_type_ids = tokens['token_type_ids'][0].tolist()
+        # token_type_ids = tokens['token_type_ids'][0].tolist()
 
         assert len(input_ids) == max_seq_len, "Error with input length {} vs {}".format(len(input_ids), max_seq_len)
         assert len(attention_mask) == max_seq_len, "Error with attention mask length {} vs {}".format(
             len(attention_mask), max_seq_len)
-        assert len(token_type_ids) == max_seq_len, "Error with token type length {} vs {}".format(len(token_type_ids),
-                                                                                                  max_seq_len)
+        # assert len(token_type_ids) == max_seq_len, "Error with token type length {} vs {}".format(len(token_type_ids), max_seq_len)
 
         label_id = example.label
 
@@ -175,13 +174,13 @@ def convert_examples_to_features(examples, max_seq_len, tokenizer):
             logger.info("tokens: %s" % " ".join([str(x) for x in tokens]))
             logger.info("input_ids: %s" % " ".join([str(x) for x in input_ids]))
             logger.info("attention_mask: %s" % " ".join([str(x) for x in attention_mask]))
-            logger.info("token_type_ids: %s" % " ".join([str(x) for x in token_type_ids]))
+            # logger.info("token_type_ids: %s" % " ".join([str(x) for x in token_type_ids]))
             logger.info("label: %s (id = %d)" % (example.label, label_id))
 
         features.append(
             InputFeatures(input_ids=input_ids,
                           attention_mask=attention_mask,
-                          token_type_ids=token_type_ids,
+                          token_type_ids=None,
                           label_id=label_id
                           ))
 
@@ -217,11 +216,12 @@ def load_and_cache_examples(root, tokenizer, mode, config):
     # Convert to Tensors and build dataset
     all_input_ids = torch.tensor([f.input_ids for f in features], dtype=torch.long)
     all_attention_mask = torch.tensor([f.attention_mask for f in features], dtype=torch.long)
-    all_token_type_ids = torch.tensor([f.token_type_ids for f in features], dtype=torch.long)
+    # all_token_type_ids = torch.tensor([f.token_type_ids for f in features], dtype=torch.long)
     all_label_ids = torch.tensor([f.label_id for f in features], dtype=torch.long)
 
-    dataset = TensorDataset(all_input_ids, all_attention_mask,
-                            all_token_type_ids, all_label_ids)
+    # dataset = TensorDataset(all_input_ids, all_attention_mask,
+    #                         all_token_type_ids, all_label_ids)
+    dataset = TensorDataset(all_input_ids, all_attention_mask, all_label_ids)
     return dataset
 
 
