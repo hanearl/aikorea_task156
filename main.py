@@ -33,6 +33,8 @@ from config import Config
 '''
 args = argparse.ArgumentParser()
 args.add_argument("--num_epochs", type=int, default=0)
+args.add_argument("--alpha", type=float, default=None)
+args.add_argument("--gamma", type=float, default=None)
 args.add_argument("--train_id", type=str, default=None)
 args.add_argument("--mode", type=str, default=None)
 args.add_argument("--use_bayes_opt", type=bool, default=False)
@@ -120,5 +122,5 @@ if args.use_bayes_opt:
                                    random_state=42)
     bayes_optimizer.maximize(init_points=5, n_iter=20, acq='ei', xi=0.01)
 else:
-    train_result = main()
+    train_result = main(alpha=args.alpha, gamma=args.gamma)
     logging.info('Train Result %f' % (train_result))
