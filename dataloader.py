@@ -145,7 +145,7 @@ processors = {
 }
 
 
-def convert_examples_to_features(examples, max_seq_len, tokenizer):
+def convert_examples_to_features(examples, max_seq_len, tokenizer, is_segment_id):
     features = []
     for (ex_index, example) in enumerate(examples):
         if ex_index % 5000 == 0:
@@ -155,13 +155,15 @@ def convert_examples_to_features(examples, max_seq_len, tokenizer):
 
         input_ids = tokens['input_ids'][0].tolist()
         attention_mask = tokens['attention_mask'][0].tolist()
-        token_type_ids = tokens['token_type_ids'][0].tolist()
+        if is_segment_id:
+            token_type_ids = tokens['token_type_ids'][0].tolist()
 
         assert len(input_ids) == max_seq_len, "Error with input length {} vs {}".format(len(input_ids), max_seq_len)
         assert len(attention_mask) == max_seq_len, "Error with attention mask length {} vs {}".format(
             len(attention_mask), max_seq_len)
-        assert len(token_type_ids) == max_seq_len, "Error with token type length {} vs {}".format(len(token_type_ids),
-                                                                                                  max_seq_len)
+        if is_segment_id:
+            assert len(token_type_ids) == max_seq_len, "Error with token type length {} vs {}".format(len(token_type_ids),
+                                                                                                    max_seq_len)
 
         label_id = example.label
 
@@ -171,20 +173,27 @@ def convert_examples_to_features(examples, max_seq_len, tokenizer):
             logger.info("tokens: %s" % " ".join([str(x) for x in tokens]))
             logger.info("input_ids: %s" % " ".join([str(x) for x in input_ids]))
             logger.info("attention_mask: %s" % " ".join([str(x) for x in attention_mask]))
-            logger.info("token_type_ids: %s" % " ".join([str(x) for x in token_type_ids]))
+            if is_segment_id:
+                logger.info("token_type_ids: %s" % " ".join([str(x) for x in token_type_ids]))
             logger.info("label: %s (id = %d)" % (example.label, label_id))
 
-        features.append(
-            InputFeatures(input_ids=input_ids,
-                          attention_mask=attention_mask,
-                          token_type_ids=token_type_ids,
-                          label_id=label_id
-                          ))
+        if is_segment_id:
+            features.append(
+                InputFeatures(input_ids=input_ids,
+                              attention_mask=attention_mask,
+                              token_type_ids=token_type_ids,
+                              label_id=label_id))
+        else:
+            features.append(
+                InputFeatures(input_ids=input_ids,
+                              attention_mask=attention_mask,
+                              token_type_ids=None,
+                              label_id=label_id))
 
     return features
 
 
-def load_and_cache_examples(root, tokenizer, mode, max_seq_len, result_path):
+def load_and_cache_examples(root, tokenizer, mode, max_seq_len, result_path, is_segment_id):
     processor = processors['nsmc'](root)
 
     # Load data features from cache or dataset file
@@ -205,23 +214,26 @@ def load_and_cache_examples(root, tokenizer, mode, max_seq_len, result_path):
         else:
             raise Exception("For mode, Only train, dev, test is available")
 
-        features = convert_examples_to_features(examples, max_seq_len, tokenizer)
+        features = convert_examples_to_features(examples, max_seq_len, tokenizer, is_segment_id)
         logger.info("Saving features into cached file %s", cached_features_file)
         torch.save(features, cached_features_file)
 
     # Convert to Tensors and build dataset
     all_input_ids = torch.tensor([f.input_ids for f in features], dtype=torch.long)
     all_attention_mask = torch.tensor([f.attention_mask for f in features], dtype=torch.long)
-    all_token_type_ids = torch.tensor([f.token_type_ids for f in features], dtype=torch.long)
     all_label_ids = torch.tensor([f.label_id for f in features], dtype=torch.long)
-
-    dataset = TensorDataset(all_input_ids, all_attention_mask,
-                            all_token_type_ids, all_label_ids)
+    if is_segment_id:
+        all_token_type_ids = torch.tensor([f.token_type_ids for f in features], dtype=torch.long)
+        dataset = TensorDataset(all_input_ids, all_attention_mask,
+                                all_token_type_ids, all_label_ids)
+    else:
+        dataset = TensorDataset(all_input_ids, all_attention_mask, all_label_ids)
     return dataset
 
 
-def data_loader(root, phase, batch_size, tokenizer, max_seq_len, result_path):
-    dataset = load_and_cache_examples(root, tokenizer, mode=phase, max_seq_len=max_seq_len, result_path=result_path)
+def data_loader(root, phase, batch_size, tokenizer, max_seq_len, result_path, is_segment_id):
+    dataset = load_and_cache_examples(root, tokenizer, mode=phase,
+                                      max_seq_len=max_seq_len, result_path=result_path, is_segment_id=is_segment_id)
 
     if phase == 'train':
         sampler = data.RandomSampler(dataset)
