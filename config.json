@@ -16,5 +16,7 @@
   "batch_size": 128,
   "mode": "train",
   "use_preprocess": true,
-  "use_swa": false
+  "use_swa": true,
+  "swa_start": 4,
+  "swa_freq": 2
 }

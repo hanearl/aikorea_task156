@@ -78,7 +78,7 @@ class Trainer(object):
 
         if self.args.use_swa:
             base_opt = AdamW(optimizer_grouped_parameters, lr=self.args.lr, eps=1e-8)
-            self.optimizer = SWA(base_opt, swa_start=4 * len(train_dataloader), swa_freq=100, swa_lr=5e-5)
+            self.optimizer = SWA(base_opt, swa_start=self.args.swa_start * len(train_dataloader), swa_freq=self.args.swa_freq, swa_lr=5e-5)
             self.optimizer.param_groups = self.optimizer.optimizer.param_groups
             self.optimizer.state = self.optimizer.optimizer.state
             self.optimizer.defaults = self.optimizer.optimizer.defaults
@@ -151,20 +151,20 @@ class Trainer(object):
                 logger.info('train loss %f', loss.item())
 
             logger.info('total train loss %f', tr_loss / global_step)
-            if epoch >= 4 and self.args.use_swa:
+            if epoch >= self.args.swa_start and self.args.use_swa:
                 self.optimizer.swap_swa_sgd()
 
-            logger.info("  Num Epochs = %d", self.args.num_epochs)
+            logger.info("  [Epoch] : %d", epoch)
             fin_result = self.evaluate("validate")
             self.save_model(epoch)
             self.model.train()
-            if epoch >= 4 and self.args.use_swa:
+
+            if epoch >= self.args.swa_start and self.args.use_swa:
                 self.optimizer.swap_swa_sgd()
 
             f1_max = max(fin_result['f1_macro'], f1_max)
 
-        if epoch >= 4 and self.args.use_swa:
-            self.optimizer.swap_swa_sgd()
+        self.optimizer.swap_swa_sgd()
         with open(os.path.join(self.args.base_dir, self.args.result_dir, self.args.train_id, 'param_seach.txt'), "a",
                   encoding="utf-8") as f:
             f.write('alpha: {}, gamma: {}, f1_macro: {}\n'.format(alpha, gamma, f1_max))

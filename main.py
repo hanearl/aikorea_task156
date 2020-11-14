@@ -29,8 +29,7 @@ args.add_argument("--gamma", type=float, default=None)
 args.add_argument("--train_id", type=str, default=None)
 args.add_argument("--mode", type=str, default=None)
 args.add_argument("--use_bayes_opt", type=bool, default=False)
-args.add_argument("--use_preprocess", type=bool, default=False)
-args.add_argument("--use_swa", type=bool, default=False)
+args.add_argument("--use_swa", type=bool, default=True)
 args.add_argument("--config_path", type=str, default="config.json")
 args.add_argument("--base_dir", type=str, default=None)
 
@@ -104,7 +103,6 @@ def main(alpha=None, gamma=None):
         config.base_dir = args.base_dir
 
     config.use_bayes_opt = args.use_bayes_opt
-    config.use_preprocess = args.use_preprocess
     config.use_swa = args.use_swa
 
     train_path = os.path.join(config.base_dir, config.train_dir, config.train_id)
@@ -161,7 +159,7 @@ if args.use_bayes_opt:
                                        'gamma': (0.1, 5)
                                    },
                                    random_state=42)
-    bayes_optimizer.maximize(init_points=5, n_iter=20, acq='ei', xi=0.01)
+    bayes_optimizer.maximize(init_points=3, n_iter=10, acq='ei', xi=0.01)
 else:
     train_result = main(alpha=args.alpha, gamma=args.gamma)
     logging.info('Train Result %f' % (train_result))
